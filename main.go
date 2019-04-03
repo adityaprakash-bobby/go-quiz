@@ -6,11 +6,25 @@ import (
 	"os"
 	"encoding/csv"
 	"strings"
+	"time"
 )
 
 type problem struct {
 	ques string
 	ans string
+}
+
+func parseLines (lines [][]string) []problem {
+	ret := make([]problem, len(lines))
+
+	for i, line := range lines {
+		ret[i] = problem {
+			ques : line[0],
+			ans : strings.TrimSpace(line[1]),
+		}
+	}
+
+	return ret
 }
 
 func exit (msg string) {
@@ -19,7 +33,9 @@ func exit (msg string) {
 }
 
 func main () {
+
 	csvFile := flag.String("file", "problems.csv", "A csv file in the format of 'question,answer'")
+	timeout := flag.Int("timeout", 30, "Time limit to attempt a question")
 	flag.Parse()
 
 	file, err := os.Open(*csvFile)
@@ -37,33 +53,39 @@ func main () {
 	}
 
 	problems := parseLines(lines)
-
+	timer := time.NewTimer(time.Duration(*timeout) * time.Second)
+	
 	correct := 0 
 
-	for i, problem := range problems {
-		fmt.Printf("Question #%d: %s = \n", i+1, problem.ques)
+	problemLoop:
+		for i, problem := range problems {
+			fmt.Printf("Question #%d: %s = \n", i+1, problem.ques)
 
-		var answer string
+			answerChan := make(chan string)
 
-		fmt.Scanf("%s\n", &answer)
+			go func() {
 
-		if answer == problem.ans {
-			correct++
+				var answer string
+
+				fmt.Scanf("%s\n", &answer)
+
+				answerChan <- answer
+			}()
+
+
+			select {
+			case <-timer.C:
+				fmt.Println()
+				break problemLoop
+
+			case answer := <- answerChan:
+				if answer == problem.ans {
+					correct++
+				}
+
+			}
+
 		}
-	}
 
 	fmt.Printf("You scored %d out of %d.\n", correct, len(problems))
-}
-
-func parseLines (lines [][]string) []problem {
-	ret := make([]problem, len(lines))
-
-	for i, line := range lines {
-		ret[i] = problem {
-			ques : line[0],
-			ans : strings.TrimSpace(line[1]),
-		}
-	}
-
-	return ret
 }
